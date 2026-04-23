@@ -45,7 +45,7 @@ const PLAYERS_DATA = {
     { ticker: "URNU", allocation: 25000 },
   ],
   "Nil": [
-    { ticker: "NOVO-B", allocation: 15000 },
+    { ticker: "NVO", allocation: 15000 },
     { ticker: "RDW", allocation: 10000 },
     { ticker: "GOOG", allocation: 10000 },
     { ticker: "SMCI", allocation: 10000 },
@@ -102,7 +102,7 @@ function computePortfolio(picks, buyPrices, livePrices) {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-const BUY_CACHE_KEY = "portfolio-royale-buy-prices-v3";
+const BUY_CACHE_KEY = "portfolio-royale-buy-prices-v4";
 
 export default function App() {
   const [buyPrices, setBuyPrices] = useState({});
