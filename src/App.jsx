@@ -14,7 +14,7 @@ const BUY_PRICES = {
   GOLD: 34.77,  MSTR: 157.16, MS: 180.90,   C: 118.08,    MSFT: 471.86,
   PLTR: 167.86, UBER: 82.86,  NOW: 147.45,  VEEV: 219.49, RDDT: 241.89,
   XOM: 121.84,
-  URA: 43.43,
+  URA: 46.06,
 };
 
 const PLAYERS_DATA = {
