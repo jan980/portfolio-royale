@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const API_KEY = "d7l12fpr01qm7o0a47o0d7l12fpr01qm7o0a47og";
 const BUDGET = 100000;
-const BUY_DATE_FROM = 1735862400; // Jan 2, 2026 00:00 UTC
-const BUY_DATE_TO = 1735948800;   // Jan 3, 2026 00:00 UTC
+const BUY_DATE_FROM = 1767312000; // Jan 2, 2026 00:00 UTC
+const BUY_DATE_TO = 1767484800;   // Jan 4, 2026 00:00 UTC (wider end to safely capture Jan 2 candle)
 
 const PLAYERS_DATA = {
-  "Jan Armbruster": [
+  "Jan": [
     { ticker: "AMZN", allocation: 21000 },
     { ticker: "META", allocation: 25000 },
     { ticker: "AVGO", allocation: 9000 },
@@ -102,7 +102,7 @@ function computePortfolio(picks, buyPrices, livePrices) {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-const BUY_CACHE_KEY = "portfolio-royale-buy-prices-v2";
+const BUY_CACHE_KEY = "portfolio-royale-buy-prices-v3";
 
 export default function App() {
   const [buyPrices, setBuyPrices] = useState({});
@@ -194,7 +194,7 @@ export default function App() {
       } catch {}
       await delay(130);
     }
-    setLivePrices(lp);
+    setLivePrices(prev => ({ ...prev, ...lp }));
     setLastUpdate(new Date());
     setLoading(false);
     setStage("");
