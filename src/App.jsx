@@ -2,8 +2,19 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const API_KEY = "d7l12fpr01qm7o0a47o0d7l12fpr01qm7o0a47og";
 const BUDGET = 100000;
-const BUY_DATE_FROM = 1767312000; // Jan 2, 2026 00:00 UTC
-const BUY_DATE_TO = 1767484800;   // Jan 4, 2026 00:00 UTC (wider end to safely capture Jan 2 candle)
+
+// Jan 2, 2026 closing prices (hardcoded — verify if numbers look off)
+const BUY_PRICES = {
+  AMZN: 226.50, META: 649.85, AVGO: 346.89, ANET: 133.60, AMD: 223.47,
+  TSM: 318.89,  VRT: 175.57,  SMCI: 30.96,  SOUN: 10.60,  MP: 54.97,
+  IBIT: 50.94,  TQQQ: 52.26,  GOOGL: 314.93, GOOG: 315.32, IREN: 42.70,
+  TMC: 6.78,   LIT: 66.27,   ASTS: 83.47,  NVO: 50.54,   IONQ: 46.77,
+  RGTI: 23.60,  CRWD: 453.58, NVDA: 188.84, NEE: 80.38,   LMT: 494.46,
+  OXY: 42.18,  DSDVY: 128.09, RDW: 9.03,   LLY: 1078.56, RKLB: 75.99,
+  GOLD: 34.77,  MSTR: 157.16, MS: 180.90,   C: 118.08,    MSFT: 471.86,
+  PLTR: 167.86, UBER: 82.86,  NOW: 147.45,  VEEV: 219.49, RDDT: 241.89,
+  XOM: 121.84,
+};
 
 const PLAYERS_DATA = {
   "Jan": [
@@ -102,10 +113,8 @@ function computePortfolio(picks, buyPrices, livePrices) {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-const BUY_CACHE_KEY = "portfolio-royale-buy-prices-v4";
-
 export default function App() {
-  const [buyPrices, setBuyPrices] = useState({});
+  const [buyPrices, setBuyPrices] = useState(BUY_PRICES);
   const [livePrices, setLivePrices] = useState({});
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState("");
@@ -120,44 +129,9 @@ export default function App() {
     return (data.c && data.c > 0) ? data.c : null;
   }, []);
 
-  const fetchHistorical = useCallback(async (ticker) => {
-    const res = await fetch(
-      `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${BUY_DATE_FROM}&to=${BUY_DATE_TO}&token=${API_KEY}`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.s === "ok" && data.c?.length > 0) return data.c[0];
-    return null;
-  }, []);
-
   const loadData = useCallback(async () => {
     setLoading(true);
     const tickers = getAllTickers();
-
-    // Load cached buy prices from localStorage
-    let bp = {};
-    try {
-      const stored = localStorage.getItem(BUY_CACHE_KEY);
-      if (stored) bp = JSON.parse(stored);
-    } catch {}
-
-    // Fetch missing buy prices
-    const missingBuy = tickers.filter(t => !bp[t]);
-    if (missingBuy.length > 0) {
-      for (let i = 0; i < missingBuy.length; i++) {
-        const t = missingBuy[i];
-        setStage(`Buy prices: ${i + 1}/${missingBuy.length} (${t})`);
-        try {
-          const price = await fetchHistorical(t);
-          if (price) bp[t] = price;
-        } catch {}
-        await delay(130);
-      }
-      try { localStorage.setItem(BUY_CACHE_KEY, JSON.stringify(bp)); } catch {}
-    }
-    setBuyPrices(bp);
-
-    // Fetch live prices
     const lp = {};
     for (let i = 0; i < tickers.length; i++) {
       const t = tickers[i];
@@ -172,7 +146,7 @@ export default function App() {
     setLastUpdate(new Date());
     setLoading(false);
     setStage("");
-  }, [fetchQuote, fetchHistorical]);
+  }, [fetchQuote]);
 
   useEffect(() => {
     if (!hasFetched.current) {
@@ -253,13 +227,13 @@ export default function App() {
           fontSize: "clamp(42px, 6vw, 72px)", fontWeight: 400, color: "#1A1A1A",
           lineHeight: 1.05, margin: 0, letterSpacing: "-1.5px",
         }}>
-          Track who's winning<br/>the stock draft.
+          Who's printing tendies<br/>and who's bag-holding?
         </h1>
         <p style={{
           fontFamily: "'DM Sans', sans-serif", fontSize: "16px", color: "#888",
           marginTop: "20px", lineHeight: 1.6, maxWidth: "440px",
         }}>
-          6 players, $100,000 each, real picks. Buy prices locked to January 2, 2026 close. The leaderboard updates with live market prices.
+          6 degenerate apes, $100k each, real yolo picks. Buy-in locked at Jan 2, 2026 close. Diamond hands only. 💎🙌🚀
         </p>
         <div style={{
           display: "flex", gap: "24px", marginTop: "32px",
