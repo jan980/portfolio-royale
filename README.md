@@ -15,6 +15,8 @@ npm run build
 
 The app starts from `public/data/market-history.json`. No Yahoo request or API key is needed to load the chart. Live quotes remain optional through the existing Finnhub integration.
 
+Select a player in the leaderboard to highlight their historical performance and show their holdings. The chart supports pointer, touch, and keyboard inspection; 1M and 3M show the latest 21 and 63 trading sessions while returns remain measured from the competition start. The interface uses locally hosted Geist and Instrument Serif fonts and adapts the holdings table for phones.
+
 ## Daily history
 
 ```sh
