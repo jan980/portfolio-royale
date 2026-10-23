@@ -1,96 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
+import PerformanceChart, { displayDate } from "./PerformanceChart.jsx";
+import useMarketHistory from "./useMarketHistory.js";
+import { historyPrices } from "./lib/history.js";
+import { BUDGET, BUY_PRICES, PLAYERS_DATA, INACTIVE, getAllTickers } from "./data/portfolios.js";
 
 const API_KEY = "d7l12fpr01qm7o0a47o0d7l12fpr01qm7o0a47og";
-const BUDGET = 100000;
 
-// Jan 2, 2026 closing prices (hardcoded — verify if numbers look off)
-const BUY_PRICES = {
-  AMZN: 226.50, META: 649.85, AVGO: 346.89, ANET: 133.60, AMD: 223.47,
-  TSM: 318.89,  VRT: 175.57,  SMCI: 30.96,  SOUN: 10.60,  MP: 54.97,
-  IBIT: 50.94,  TQQQ: 52.26,  GOOGL: 314.93, GOOG: 315.32, IREN: 42.70,
-  TMC: 6.78,   LIT: 66.27,   ASTS: 83.47,  NVO: 50.54,   IONQ: 46.77,
-  RGTI: 23.60,  CRWD: 453.58, NVDA: 188.84, NEE: 80.38,   LMT: 494.46,
-  OXY: 42.18,  DSDVY: 128.09, RDW: 9.03,   LLY: 1078.56, RKLB: 75.99,
-  GOLD: 34.77,  MSTR: 157.16, MS: 180.90,   C: 118.08,    MSFT: 471.86,
-  PLTR: 167.86, UBER: 82.86,  NOW: 147.45,  VEEV: 219.49, RDDT: 241.89,
-  XOM: 121.84,
-  URA: 46.06,
-};
-
-const PLAYERS_DATA = {
-  "Jan": [
-    { ticker: "AMZN", allocation: 21000 },
-    { ticker: "META", allocation: 25000 },
-    { ticker: "AVGO", allocation: 9000 },
-    { ticker: "ANET", allocation: 8000 },
-    { ticker: "AMD", allocation: 7000 },
-    { ticker: "TSM", allocation: 7000 },
-    { ticker: "VRT", allocation: 7000 },
-    { ticker: "SMCI", allocation: 7000 },
-    { ticker: "SOUN", allocation: 5000 },
-    { ticker: "MP", allocation: 4000 },
-  ],
-  "Nejc": [
-    { ticker: "IBIT", allocation: 30000 },
-    { ticker: "TQQQ", allocation: 20000 },
-    { ticker: "GOOGL", allocation: 10000 },
-    { ticker: "IREN", allocation: 10000 },
-    { ticker: "TMC", allocation: 10000 },
-    { ticker: "LIT", allocation: 10000 },
-    { ticker: "ASTS", allocation: 10000 },
-  ],
-  "Filip": [
-    { ticker: "AMD", allocation: 12000 },
-    { ticker: "NVO", allocation: 8000 },
-    { ticker: "IONQ", allocation: 8000 },
-    { ticker: "RGTI", allocation: 6000 },
-    { ticker: "GOOGL", allocation: 12000 },
-    { ticker: "CRWD", allocation: 12000 },
-    { ticker: "NVDA", allocation: 20000 },
-    { ticker: "NEE", allocation: 6000 },
-    { ticker: "LMT", allocation: 6000 },
-    { ticker: "OXY", allocation: 10000 },
-  ],
-  "Matus": [
-    { ticker: "NVO", allocation: 50000 },
-    { ticker: "DSDVY", allocation: 25000 },
-    { ticker: "URA", allocation: 25000 },
-  ],
-  "Nil": [
-    { ticker: "NVO", allocation: 15000 },
-    { ticker: "RDW", allocation: 10000 },
-    { ticker: "GOOG", allocation: 10000 },
-    { ticker: "SMCI", allocation: 10000 },
-    { ticker: "LLY", allocation: 5000 },
-    { ticker: "RKLB", allocation: 10000 },
-    { ticker: "GOLD", allocation: 10000 },
-    { ticker: "MSTR", allocation: 10000 },
-    { ticker: "MS", allocation: 10000 },
-    { ticker: "C", allocation: 10000 },
-  ],
-  "Robbie": [
-    { ticker: "AMZN", allocation: 16000 },
-    { ticker: "MSFT", allocation: 14000 },
-    { ticker: "PLTR", allocation: 12000 },
-    { ticker: "UBER", allocation: 11000 },
-    { ticker: "NOW", allocation: 10000 },
-    { ticker: "VEEV", allocation: 9000 },
-    { ticker: "AVGO", allocation: 9000 },
-    { ticker: "RDDT", allocation: 8000 },
-    { ticker: "XOM", allocation: 6000 },
-    { ticker: "LMT", allocation: 5000 },
-  ],
-};
-
-const INACTIVE = ["Jan Wilske", "Christiane", "Daniel"];
-
-function getAllTickers() {
-  const s = new Set();
-  Object.values(PLAYERS_DATA).forEach(picks => picks.forEach(p => s.add(p.ticker)));
-  return [...s];
-}
-
-function fmt(n) { return "$" + Math.round(n).toLocaleString(); }
+function fmt(n) { return Math.round(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }); }
 function fmtPct(n) { return (n >= 0 ? "+" : "") + (n * 100).toFixed(2) + "%"; }
 function fmtPrice(n) { return "$" + n.toFixed(2); }
 
@@ -115,74 +31,59 @@ function computePortfolio(picks, buyPrices, livePrices) {
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 export default function App() {
-  const [buyPrices, setBuyPrices] = useState(BUY_PRICES);
+  const { history, error: historyError, retry: retryHistory } = useMarketHistory();
   const [livePrices, setLivePrices] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const hasFetched = useRef(false);
+  const [valuationMode, setValuationMode] = useState("close");
+  const fetching = useRef(false);
+  const buyPrices = useMemo(() => history ? historyPrices(history, 0) : BUY_PRICES, [history]);
+  const dailyPrices = useMemo(() => history ? historyPrices(history) : {}, [history]);
+  const displayPrices = valuationMode === "close" ? dailyPrices : { ...dailyPrices, ...livePrices };
 
   const fetchQuote = useCallback(async (ticker) => {
-    const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${API_KEY}`);
+    const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${API_KEY}`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
     const data = await res.json();
-    return (data.c && data.c > 0) ? data.c : null;
+    // Only count current-session quotes as live. Older or unavailable quotes
+    // use the explicitly labelled daily close instead.
+    if (!Number.isFinite(data.c) || data.c <= 0 || !data.t || Date.now() / 1000 - data.t > 24 * 60 * 60) return null;
+    return data.c;
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const tickers = getAllTickers();
-    const lp = {};
-    for (let i = 0; i < tickers.length; i++) {
-      const t = tickers[i];
-      setStage(`Live prices: ${i + 1}/${tickers.length} (${t})`);
-      try {
-        const price = await fetchQuote(t);
-        if (price) lp[t] = price;
-      } catch {}
-      await delay(130);
-    }
-    setLivePrices(lp);
-    setLastUpdate(new Date());
-    setLoading(false);
-    setStage("");
-  }, [fetchQuote]);
-
-  useEffect(() => {
-    if (!hasFetched.current) {
-      hasFetched.current = true;
-      loadData();
-    }
-  }, [loadData]);
-
   const refreshLive = useCallback(async () => {
+    if (fetching.current) return;
+    fetching.current = true;
+    setValuationMode("live");
     setLoading(true);
     const tickers = getAllTickers();
-    const lp = {};
+    const prices = {};
     for (let i = 0; i < tickers.length; i++) {
-      const t = tickers[i];
-      setStage(`Refreshing: ${i + 1}/${tickers.length} (${t})`);
+      const ticker = tickers[i];
+      setStage(`Live prices: ${i + 1}/${tickers.length}`);
       try {
-        const price = await fetchQuote(t);
-        if (price) lp[t] = price;
-      } catch {}
+        const price = await fetchQuote(ticker);
+        if (price) prices[ticker] = price;
+      } catch { /* Saved daily close remains available. */ }
       await delay(130);
     }
-    setLivePrices(prev => ({ ...prev, ...lp }));
+    setLivePrices(prices);
     setLastUpdate(new Date());
     setLoading(false);
     setStage("");
+    fetching.current = false;
   }, [fetchQuote]);
 
-  const hasPrices = Object.keys(livePrices).length > 0 && Object.keys(buyPrices).length > 0;
-
+  const hasPrices = Boolean(history);
+  const fallbackCount = getAllTickers().length - Object.keys(livePrices).length;
+  const priceLabel = valuationMode === "close" ? "Closing price" : "Latest price";
   const leaderboard = Object.entries(PLAYERS_DATA)
-    .map(([name, picks]) => ({ name, ...computePortfolio(picks, buyPrices, livePrices) }))
+    .map(([name, picks]) => ({ name, ...computePortfolio(picks, buyPrices, displayPrices) }))
     .sort((a, b) => b.portfolioValue - a.portfolioValue);
-
-  const selectedData = selectedPlayer && PLAYERS_DATA[selectedPlayer]
-    ? computePortfolio(PLAYERS_DATA[selectedPlayer], buyPrices, livePrices)
+  const selectedData = selectedPlayer && history
+    ? computePortfolio(PLAYERS_DATA[selectedPlayer], buyPrices, displayPrices)
     : null;
 
   return (
@@ -190,7 +91,7 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
 
       {/* Nav */}
-      <nav style={{
+      <nav className="app-nav" style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "16px 40px", borderBottom: "1px solid #E8E6E1",
         background: "#FAFAF8", position: "sticky", top: 0, zIndex: 10,
@@ -206,24 +107,24 @@ export default function App() {
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          {lastUpdate && (
-            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#999" }}>
-              {lastUpdate.toLocaleTimeString()}
+          {history && (
+            <span className="quote-asof" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#999" }}>
+              {valuationMode === "close" ? `${displayDate(history.endDate)} close` : lastUpdate ? lastUpdate.toLocaleTimeString() : "Fetching quotes"}
             </span>
           )}
-          <button onClick={refreshLive} disabled={loading} style={{
+          <button onClick={refreshLive} disabled={loading || !history} style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500,
             background: loading ? "#F0EFEB" : "#1A1A1A", color: loading ? "#999" : "#fff",
             border: "none", borderRadius: "8px", padding: "8px 18px",
             cursor: loading ? "default" : "pointer",
           }}>
-            {loading ? stage || "Loading..." : "Refresh prices"}
+            {loading ? stage || "Loading..." : valuationMode === "close" ? "View live prices" : "Refresh live prices"}
           </button>
         </div>
       </nav>
 
       {/* Hero */}
-      <section style={{ padding: "80px 40px 60px", maxWidth: "900px", margin: "0 auto" }}>
+      <section className="app-hero" style={{ padding: "64px 40px 52px", maxWidth: "900px", margin: "0 auto" }}>
         <h1 style={{
           fontSize: "clamp(42px, 6vw, 72px)", fontWeight: 400, color: "#1A1A1A",
           lineHeight: 1.05, margin: 0, letterSpacing: "-1.5px",
@@ -248,19 +149,28 @@ export default function App() {
         </div>
       </section>
 
+      <PerformanceChart history={history} error={historyError} retry={retryHistory} selectedPlayer={selectedPlayer} onSelectPlayer={setSelectedPlayer} />
+
       {/* Leaderboard */}
-      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "0 40px 60px" }}>
-        <div style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
-          letterSpacing: "1.5px", color: "#bbb", textTransform: "uppercase", marginBottom: "20px",
-        }}>Leaderboard</div>
+      <section className="app-section" style={{ maxWidth: "980px", margin: "0 auto", padding: "0 40px 60px" }}>
+        <div className="leaderboard-toolbar">
+          <div className="eyebrow" style={{ marginBottom: 0 }}>Leaderboard</div>
+          <div className="segmented" aria-label="Leaderboard valuation">
+            <button aria-pressed={valuationMode === "close"} onClick={() => setValuationMode("close")}>Daily close</button>
+            <button aria-pressed={valuationMode === "live"} disabled={!history || loading} onClick={() => { if (lastUpdate) setValuationMode("live"); else refreshLive(); }}>Live</button>
+          </div>
+        </div>
+        <p className="leaderboard-caption">{!history ? "Waiting for verified closing prices." : valuationMode === "close"
+          ? `${displayDate(history.endDate, { year: "numeric" })} market close · Matches the chart’s latest day`
+          : loading ? "Fetching live quotes. Saved daily closes remain visible until the update completes."
+          : `${Object.keys(livePrices).length} live quotes · ${fallbackCount} ${fallbackCount === 1 ? "position uses" : "positions use"} the ${displayDate(history.endDate)} close`}</p>
 
         <div style={{ borderTop: "1px solid #E8E6E1" }}>
           {leaderboard.map((player, i) => {
             const isSelected = selectedPlayer === player.name;
             const ret = player.ret;
             return (
-              <div key={player.name}
+              <button className="leaderboard-row" key={player.name} aria-pressed={isSelected}
                 onClick={() => setSelectedPlayer(isSelected ? null : player.name)}
                 style={{
                   display: "grid", gridTemplateColumns: "32px 1fr auto auto",
@@ -279,22 +189,22 @@ export default function App() {
                   <span style={{ fontSize: "18px", color: "#1A1A1A", letterSpacing: "-0.3px" }}>
                     {player.name}
                   </span>
-                  <span style={{
+                  <span className="player-picks" style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#bbb", marginLeft: "12px",
                   }}>
                     {player.rows.length} picks
                   </span>
                 </div>
-                <span style={{
+                <span className="leaderboard-return" style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500,
                   color: ret > 0 ? "#16a34a" : ret < 0 ? "#dc2626" : "#999",
                   minWidth: "70px", textAlign: "right",
                 }}>{hasPrices ? fmtPct(ret) : "—"}</span>
-                <span style={{
+                <span className="leaderboard-value" style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600,
                   color: "#1A1A1A", minWidth: "100px", textAlign: "right",
                 }}>{hasPrices ? fmt(player.portfolioValue) : "—"}</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -305,7 +215,7 @@ export default function App() {
 
       {/* Player Detail */}
       {selectedData && (
-        <section style={{ maxWidth: "900px", margin: "0 auto", padding: "0 40px 80px" }}>
+        <section className="app-section" style={{ maxWidth: "980px", margin: "0 auto", padding: "0 40px 80px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "32px", flexWrap: "wrap", gap: "16px" }}>
             <div>
               <div style={{
@@ -325,7 +235,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{
+          <div className="portfolio-stats" style={{
             display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
             gap: "1px", background: "#E8E6E1", borderRadius: "12px", overflow: "hidden", marginBottom: "40px",
           }}>
@@ -345,7 +255,7 @@ export default function App() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'DM Sans', sans-serif", fontSize: "13px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #E8E6E1" }}>
-                  {["Ticker", "Allocation", "Buy price", "Shares", "Live price", "Value", "P/L"].map((h, i) => (
+                  {["Ticker", "Allocation", "Entry (split adj.)", "Shares", priceLabel, "Value", "P/L"].map((h, i) => (
                     <th key={h} style={{
                       padding: "12px 16px", textAlign: i === 0 ? "left" : "right",
                       fontSize: "11px", fontWeight: 600, letterSpacing: "0.8px", color: "#999",
@@ -382,30 +292,30 @@ export default function App() {
       )}
 
       {/* Stock grid */}
-      {!selectedPlayer && hasPrices && !loading && (
-        <section style={{ maxWidth: "900px", margin: "0 auto", padding: "0 40px 80px" }}>
+      {!selectedPlayer && hasPrices && (
+        <section className="app-section" style={{ maxWidth: "980px", margin: "0 auto", padding: "0 40px 80px" }}>
           <div style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: "11px", fontWeight: 600,
             letterSpacing: "1.5px", color: "#bbb", textTransform: "uppercase", marginBottom: "8px",
           }}>All holdings</div>
           <h2 style={{ fontSize: "36px", fontWeight: 400, color: "#1A1A1A", margin: "0 0 32px" }}>
-            {getAllTickers().filter(t => livePrices[t] && buyPrices[t]).length} stocks tracked.
+            {getAllTickers().filter(t => displayPrices[t] && buyPrices[t]).length} stocks tracked.
           </h2>
           <div style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
             gap: "1px", background: "#E8E6E1", borderRadius: "12px", overflow: "hidden",
           }}>
             {getAllTickers()
-              .filter(t => livePrices[t] && buyPrices[t])
+              .filter(t => displayPrices[t] && buyPrices[t])
               .sort((a, b) =>
-                ((livePrices[b] - buyPrices[b]) / buyPrices[b]) - ((livePrices[a] - buyPrices[a]) / buyPrices[a])
+                ((displayPrices[b] - buyPrices[b]) / buyPrices[b]) - ((displayPrices[a] - buyPrices[a]) / buyPrices[a])
               )
               .map(ticker => {
                 const owners = [];
                 Object.entries(PLAYERS_DATA).forEach(([name, picks]) => {
                   if (picks.find(x => x.ticker === ticker)) owners.push(name);
                 });
-                const ret = (livePrices[ticker] - buyPrices[ticker]) / buyPrices[ticker];
+                const ret = (displayPrices[ticker] - buyPrices[ticker]) / buyPrices[ticker];
                 return (
                   <div key={ticker} style={{ background: "#fff", padding: "20px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
@@ -417,7 +327,7 @@ export default function App() {
                     </div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#aaa", display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
                       <span>{fmtPrice(buyPrices[ticker])}</span>
-                      <span style={{ color: "#666", fontWeight: 500 }}>{fmtPrice(livePrices[ticker])}</span>
+                      <span style={{ color: "#666", fontWeight: 500 }}>{fmtPrice(displayPrices[ticker])}</span>
                     </div>
                     <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#bbb" }}>
                       {owners.join(", ")}
@@ -429,10 +339,10 @@ export default function App() {
         </section>
       )}
 
-      <footer style={{ borderTop: "1px solid #E8E6E1", padding: "32px 40px", maxWidth: "900px", margin: "0 auto" }}>
+      <footer className="app-footer" style={{ borderTop: "1px solid #E8E6E1", padding: "32px 40px", maxWidth: "900px", margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#ccc", flexWrap: "wrap", gap: "8px" }}>
           <span>Portfolio Royale</span>
-          <span>Prices via Finnhub · Buy-in: Jan 2, 2026 close</span>
+          <span>History via Yahoo Finance · Live via Finnhub · Jan 2, 2026 start</span>
         </div>
       </footer>
     </div>
